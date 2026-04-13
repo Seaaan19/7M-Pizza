@@ -788,13 +788,11 @@ function renderClientOrder(){
 }
 function adjClient(id,d){clientOrder[id]=(clientOrder[id]||0)+d;if(clientOrder[id]<=0)delete clientOrder[id];renderClientOrder();}
 
-// SUBMIT — 1 reservation per day rule
+// SUBMIT
 ge("reserveForm").addEventListener("submit",e=>{
   e.preventDefault();setHint("");
   const ids=[...selectedIds];
   if(!ids.length){setHint("Please select at least one table or seat.","bad");return;}
-  const anyRes=ids.some(id=>reservations.some(r=>r.status!=="Cancelled"&&r.spaceIds.includes(id)));
-  if(anyRes){setHint("A selected table is already reserved.","bad");return;}
 
   const name=ge("resName").value.trim();
   const contact=ge("resContact").value.trim();
@@ -808,20 +806,19 @@ ge("reserveForm").addEventListener("submit",e=>{
   if(!/^[0-9+\-\s()]{7,20}$/.test(contact)){setHint("Please enter a valid contact number.","bad");return;}
   if(timeFrom>=timeTo){setHint("'Until' time must be after 'From' time.","bad");return;}
 
-  const cap=getCap(ids);
-  if(pax>cap){setHint(`${pax} guests exceed selected capacity (${cap}). Please add more tables.`,"bad");return;}
-
-  // Conflict: block only if a selected table is already reserved on the same date with overlapping time
   const conflict=ids.some(id=>
     reservations.some(r=>
       r.status!=="Cancelled" &&
       r.spaceIds.includes(id) &&
       r.date===date &&
-      timeFrom < r.timeTo &&
-      timeTo > r.timeFrom
+      timeFrom < (r.timeTo||"23:59") &&
+      timeTo > (r.timeFrom||"00:00")
     )
   );
-  if(conflict){setHint("One or more selected tables are already booked for that date/time. Choose a different time or table.","bad");return;}
+  if(conflict){setHint("A selected table is already reserved for that date and time.","bad");return;}
+
+  const cap=getCap(ids);
+  if(pax>cap){setHint(`${pax} guests exceed selected capacity (${cap}). Please add more tables.`,"bad");return;}
 
   const res={id:genId(),name,contact,pax,date,timeFrom,timeTo,notes,status:"Reserved",spaceIds:ids,createdAt:new Date().toISOString(),orders:Object.keys(clientOrder).length?{...clientOrder}:{}};
   reservations.push(res);saveData();
