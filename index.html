@@ -588,7 +588,17 @@ function genId(){return"R_"+Date.now()+"_"+Math.floor(Math.random()*9999);}
 function todayStr(){const d=new Date();return[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");}
 function calcTotal(orders){return Object.entries(orders).reduce((s,[id,q])=>{const m=MENU.find(x=>x.id===id);return s+(m?m.price*q:0);},0);}
 function getLines(orders){return Object.entries(orders).filter(([,q])=>q>0).map(([id,q])=>{const m=MENU.find(x=>x.id===id);return m?{...m,qty:q}:null;}).filter(Boolean);}
-function loadData(){try{const r=localStorage.getItem(STORAGE_KEY);return r?JSON.parse(r):[]; }catch{return[];}}
+function loadData(){
+  try{
+    const r=localStorage.getItem(STORAGE_KEY);
+    const data=r?JSON.parse(r):[];
+    // Migrate old records that used r.time instead of r.timeFrom/r.timeTo
+    data.forEach(res=>{
+      if(!res.timeFrom&&res.time){res.timeFrom=res.time;res.timeTo=res.time;}
+    });
+    return data;
+  }catch{return[];}
+}
 function saveData(){localStorage.setItem(STORAGE_KEY,JSON.stringify(reservations));}
 
 // ACCOUNTS
@@ -705,12 +715,12 @@ function getConflictingIds(){
   reservations
     .filter(r=>r.status!=="Cancelled")
     .forEach(r=>{
-      // If no date selected yet, mark all reserved tables
       if(!date){r.spaceIds.forEach(id=>resIds.add(id));return;}
       if(r.date!==date) return;
-      // If times not filled yet, any reservation on that date blocks
-      if(!timeFrom||!timeTo){r.spaceIds.forEach(id=>resIds.add(id));return;}
-      // Overlap check
+      // If either side has no times, treat as conflict on same date
+      if(!timeFrom||!timeTo||!r.timeFrom||!r.timeTo){
+        r.spaceIds.forEach(id=>resIds.add(id));return;
+      }
       if(timeFrom < r.timeTo && timeTo > r.timeFrom){
         r.spaceIds.forEach(id=>resIds.add(id));
       }
@@ -1064,16 +1074,19 @@ function initDate(){
   const s=[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
   const el=ge("resDate");if(el){el.value=s;el.min=s;}
 }
+let _floorListenersAdded=false;
 function init(){
   reservations=loadData();initDate();
   buildClientMenu();renderClientOrder();
   updateFloor();updateSummary();renderClientResList();
   if(currentRole==="admin") renderAdmin();
-  // Refresh floor when date/time changes so reserved state reflects current selection
-  ["resDate","resTimeFrom","resTimeTo"].forEach(id=>{
-    const el=ge(id);
-    if(el) el.addEventListener("change",()=>{ selectedIds.clear(); updateFloor(); updateSummary(); });
-  });
+  if(!_floorListenersAdded){
+    _floorListenersAdded=true;
+    ["resDate","resTimeFrom","resTimeTo"].forEach(id=>{
+      const el=ge(id);
+      if(el) el.addEventListener("input",()=>{ selectedIds.clear(); updateFloor(); updateSummary(); });
+    });
+  }
 }
 
 window.addEventListener("load",()=>{
