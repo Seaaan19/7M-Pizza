@@ -697,10 +697,29 @@ function switchPage(pageId,btn){
 }
 
 // FLOOR
+function getConflictingIds(){
+  const date=ge("resDate").value;
+  const timeFrom=ge("resTimeFrom").value;
+  const timeTo=ge("resTimeTo").value;
+  const resIds=new Set();
+  reservations
+    .filter(r=>r.status!=="Cancelled")
+    .forEach(r=>{
+      // If no date selected yet, mark all reserved tables
+      if(!date){r.spaceIds.forEach(id=>resIds.add(id));return;}
+      if(r.date!==date) return;
+      // If times not filled yet, any reservation on that date blocks
+      if(!timeFrom||!timeTo){r.spaceIds.forEach(id=>resIds.add(id));return;}
+      // Overlap check
+      if(timeFrom < r.timeTo && timeTo > r.timeFrom){
+        r.spaceIds.forEach(id=>resIds.add(id));
+      }
+    });
+  return resIds;
+}
 function updateFloor(){
   const nodes=ge("floor").querySelectorAll("[data-id]");
-  const resIds=new Set();
-  reservations.filter(r=>r.status!=="Cancelled").forEach(r=>r.spaceIds.forEach(id=>resIds.add(id)));
+  const resIds=getConflictingIds();
   nodes.forEach(n=>{
     const id=n.dataset.id;
     n.classList.remove("selected","reserved","available");
@@ -1050,6 +1069,11 @@ function init(){
   buildClientMenu();renderClientOrder();
   updateFloor();updateSummary();renderClientResList();
   if(currentRole==="admin") renderAdmin();
+  // Refresh floor when date/time changes so reserved state reflects current selection
+  ["resDate","resTimeFrom","resTimeTo"].forEach(id=>{
+    const el=ge(id);
+    if(el) el.addEventListener("change",()=>{ selectedIds.clear(); updateFloor(); updateSummary(); });
+  });
 }
 
 window.addEventListener("load",()=>{
