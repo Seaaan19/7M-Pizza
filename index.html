@@ -121,9 +121,31 @@
     .barTable{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:72%;height:52px;border-radius:4px;border:2.5px solid var(--charcoal);background:rgba(255,208,0,.18);}
     .barTableLabel{position:absolute;bottom:84px;left:50%;transform:translateX(-50%);font-family:var(--font-sub);font-size:10px;color:var(--ink);opacity:.55;white-space:nowrap;}
 
+    /* Table row + seat row containers */
+    .diningRow{
+      position:absolute;
+      top:120px;
+      left:0;
+      width:calc(100% - 72px);
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:16px;
+    }
+    .barSeatRow{
+      position:absolute;
+      top:390px;
+      left:0;
+      width:calc(100% - 72px);
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:16px;
+    }
+
     /* Tables & Seats */
     .table,.seat{
-      position:absolute;border:2.5px solid var(--charcoal);background:var(--white);color:var(--ink);cursor:pointer;
+      position:relative;border:2.5px solid var(--charcoal);background:var(--white);color:var(--ink);cursor:pointer;
       display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;font-family:var(--font-body);
       transition:transform .12s var(--ease),box-shadow .14s var(--ease),border-color .14s,background .14s;
       box-shadow:3px 3px 0 var(--charcoal);
@@ -359,12 +381,14 @@
           <div class="roomLabel">Dining Area</div>
           <div class="note">Tables can be combined for larger groups</div>
 
-          <!-- 5 Dining Tables -->
-          <button class="table" data-id="T1" style="left:14px;top:80px;"><span class="label">T1</span><span class="cap">4 pax</span></button>
-          <button class="table" data-id="T2" style="left:116px;top:80px;"><span class="label">T2</span><span class="cap">4 pax</span></button>
-          <button class="table" data-id="T3" style="left:218px;top:80px;"><span class="label">T3</span><span class="cap">4 pax</span></button>
-          <button class="table" data-id="T4" style="left:320px;top:80px;"><span class="label">T4</span><span class="cap">4 pax</span></button>
-          <button class="table" data-id="T5" style="left:422px;top:80px;"><span class="label">T5</span><span class="cap">4 pax</span></button>
+          <!-- 5 Dining Tables — flex row, centered left of karaoke screen -->
+          <div class="diningRow">
+            <button class="table" data-id="T1"><span class="label">T1</span><span class="cap">4 pax</span></button>
+            <button class="table" data-id="T2"><span class="label">T2</span><span class="cap">4 pax</span></button>
+            <button class="table" data-id="T3"><span class="label">T3</span><span class="cap">4 pax</span></button>
+            <button class="table" data-id="T4"><span class="label">T4</span><span class="cap">4 pax</span></button>
+            <button class="table" data-id="T5"><span class="label">T5</span><span class="cap">4 pax</span></button>
+          </div>
 
           <!-- Karaoke Screen on right -->
           <div class="screen">
@@ -379,12 +403,14 @@
             <div class="barTable" aria-hidden="true"></div>
           </div>
 
-          <!-- Bar Seats (B1–B5) -->
-          <button class="seat" data-id="B1" style="left:20px;top:386px;"><span class="label">B1</span><span class="cap">1</span></button>
-          <button class="seat" data-id="B2" style="left:104px;top:386px;"><span class="label">B2</span><span class="cap">1</span></button>
-          <button class="seat" data-id="B3" style="left:188px;top:386px;"><span class="label">B3</span><span class="cap">1</span></button>
-          <button class="seat" data-id="B4" style="left:272px;top:386px;"><span class="label">B4</span><span class="cap">1</span></button>
-          <button class="seat" data-id="B5" style="left:356px;top:386px;"><span class="label">B5</span><span class="cap">1</span></button>
+          <!-- Bar Seats (B1–B5) — flex row, centered within bar zone -->
+          <div class="barSeatRow">
+            <button class="seat" data-id="B1"><span class="label">B1</span><span class="cap">1</span></button>
+            <button class="seat" data-id="B2"><span class="label">B2</span><span class="cap">1</span></button>
+            <button class="seat" data-id="B3"><span class="label">B3</span><span class="cap">1</span></button>
+            <button class="seat" data-id="B4"><span class="label">B4</span><span class="cap">1</span></button>
+            <button class="seat" data-id="B5"><span class="label">B5</span><span class="cap">1</span></button>
+          </div>
         </div>
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
           <span class="chip"><span class="dot av"></span> Available</span>
@@ -648,6 +674,11 @@ function loginAs(role){
 function logout(){
   currentUser=null;clearSession();
   currentRole=null;selectedIds.clear();clientOrder={};
+  ge("adminNavBtn").style.display="none";
+  qsa(".page").forEach(p=>p.classList.remove("active"));
+  ge("pageClient").classList.add("active");
+  qsa(".navTab").forEach(b=>b.classList.remove("active"));
+  document.querySelector('[data-page="pageClient"]').classList.add("active");
   ge("appShell").classList.remove("visible");
   ge("loginScreen").style.display="flex";
   ge("adminPwInput").value="";ge("loginErr").textContent="";
@@ -751,9 +782,17 @@ ge("reserveForm").addEventListener("submit",e=>{
   const cap=getCap(ids);
   if(pax>cap){setHint(`${pax} guests exceed selected capacity (${cap}). Please add more tables.`,"bad");return;}
 
-  // 1 reservation per day rule
-  const dayConflict=reservations.some(r=>r.status!=="Cancelled"&&r.date===date);
-  if(dayConflict){setHint("This date already has a reservation. Only 1 reservation per day is allowed.","bad");return;}
+  // Conflict: block only if a selected table is already reserved on the same date with overlapping time
+  const conflict=ids.some(id=>
+    reservations.some(r=>
+      r.status!=="Cancelled" &&
+      r.spaceIds.includes(id) &&
+      r.date===date &&
+      timeFrom < r.timeTo &&
+      timeTo > r.timeFrom
+    )
+  );
+  if(conflict){setHint("One or more selected tables are already booked for that date/time. Choose a different time or table.","bad");return;}
 
   const res={id:genId(),name,contact,pax,date,timeFrom,timeTo,notes,status:"Reserved",spaceIds:ids,createdAt:new Date().toISOString(),orders:Object.keys(clientOrder).length?{...clientOrder}:{}};
   reservations.push(res);saveData();
